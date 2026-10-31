@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Host availability</title>
+  <link rel="stylesheet" href="css/host.css">
+  <script type="module" src="js/host.js"></script>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <p class="eyebrow">Scheduling service &middot; Host</p>
+    <h1>Publish your availability</h1>
+    <p class="lede">Set the hours you take meetings each week. People booking through your link only see open
+      slots inside these hours.</p>
+  </header>
+
+  <form id="availability-form" class="card" novalidate>
+    <section class="section" aria-labelledby="who-heading">
+      <h2 id="who-heading">Host</h2>
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="hostId">Host ID</label>
+          <input id="hostId" name="hostId" type="number" min="1" step="1" value="1" required>
+        </div>
+        <div class="field">
+          <label for="timezone">Your timezone</label>
+          <select id="timezone" name="timezone" required></select>
+          <p class="hint">Your hours below are in this timezone.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rules-heading">
+      <h2 id="rules-heading">Meeting rules</h2>
+      <div class="grid grid-3">
+        <div class="field">
+          <label for="slotMinutes">Slot length</label>
+          <div class="with-unit">
+            <input id="slotMinutes" name="slotMinutes" type="number" min="5" max="480" step="5" value="30" required>
+            <span class="unit">min</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="gapMinutes">Gap between slots</label>
+          <div class="with-unit">
+            <input id="gapMinutes" name="gapMinutes" type="number" min="0" max="240" step="5" value="15">
+            <span class="unit">min</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="maxPerDay">Max bookings per day</label>
+          <input id="maxPerDay" name="maxPerDay" type="number" min="1" max="100" step="1" value="4" required>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="week-heading">
+      <div class="section-head">
+        <h2 id="week-heading">Weekly hours</h2>
+        <button type="button" id="copy-monday" class="link-button">Copy Monday to all weekdays</button>
+      </div>
+      <div id="week" class="week"></div>
+    </section>
+
+    <div class="actions">
+      <button type="submit" id="publish" class="primary">Publish availability</button>
+      <p id="form-error" class="error" role="alert" hidden></p>
+    </div>
+  </form>
+
+  <section id="result" class="card result" aria-live="polite" hidden></section>
+</main>
+
+<template id="day-row">
+  <div class="day">
+    <label class="day-toggle">
+      <input type="checkbox" class="day-enabled">
+      <span class="day-name"></span>
+    </label>
+    <div class="day-body">
+      <ul class="windows"></ul>
+      <p class="unavailable">Unavailable</p>
+      <button type="button" class="link-button add-window">+ Add hours</button>
+    </div>
+  </div>
+</template>
+
+<template id="window-row">
+  <li class="window">
+    <input type="time" class="window-start" step="300" required>
+    <span class="dash" aria-hidden="true">&ndash;</span>
+    <input type="time" class="window-end" step="300" required>
+    <button type="button" class="icon-button remove-window">&times;</button>
+  </li>
+</template>
+</body>
+</html>
