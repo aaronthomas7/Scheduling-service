@@ -17,4 +17,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("select count(b) from Booking b where b.host.id = :hostId "
             + "and b.slot.localDate = :localDate and b.status = :status")
     long countByHostAndLocalDate(Long hostId, LocalDate localDate, BookingStatus status);
+
+    /** Any booking (even cancelled) pointing at the slot; such a slot row can't be deleted. */
+    boolean existsBySlotId(Long slotId);
 }
