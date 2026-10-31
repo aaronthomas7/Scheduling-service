@@ -4,7 +4,7 @@ package com.example.demo.exception;
 public class BookingException extends RuntimeException {
 
     public enum Reason {
-        NOT_FOUND, BAD_REQUEST, TOO_LATE_TO_CHANGE, SLOT_TAKEN, DAY_FULL
+        NOT_FOUND, BAD_REQUEST, TOO_LATE_TO_CHANGE, SLOT_TAKEN, DAY_FULL, ALREADY_BOOKED
     }
 
     private final Reason reason;
@@ -47,5 +47,11 @@ public class BookingException extends RuntimeException {
 
     public static BookingException dayFull(Long hostId) {
         return new BookingException(Reason.DAY_FULL, "The host has no more bookings available that day", hostId);
+    }
+
+    /** The user already holds an upcoming booking with this host; they should reschedule it instead. */
+    public static BookingException alreadyBooked() {
+        return new BookingException(Reason.ALREADY_BOOKED,
+                "You already have an upcoming booking with this host. Reschedule it instead.", null);
     }
 }

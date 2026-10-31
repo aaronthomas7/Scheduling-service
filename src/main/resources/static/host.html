@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Host availability</title>
-  <link rel="stylesheet" href="css/host.css">
+  <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/host.js"></script>
 </head>
 <body>
@@ -71,6 +71,17 @@
   </form>
 
   <section id="result" class="card result" aria-live="polite" hidden></section>
+
+  <section class="card" aria-labelledby="bookings-heading">
+    <div class="section-head">
+      <h2 id="bookings-heading">Bookings</h2>
+      <button type="button" id="refresh-bookings" class="link-button">Refresh</button>
+    </div>
+    <p class="hint">New bookings and reschedules appear here on their own (checked every 10 seconds).
+      <a id="booking-link" href="book.html?hosts=1">Open your booking page &rarr;</a></p>
+    <div id="bookings" aria-live="polite"></div>
+    <p id="bookings-updated" class="hint"></p>
+  </section>
 </main>
 
 <template id="day-row">

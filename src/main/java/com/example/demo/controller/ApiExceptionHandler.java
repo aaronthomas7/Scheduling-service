@@ -35,14 +35,14 @@ public class ApiExceptionHandler {
         this.clock = clock;
     }
 
-    /** Reschedule refusals. "Slot taken" and "day full" also return what is still open so the user can re-pick. */
+    /** Booking and reschedule refusals. "Slot taken" and "day full" also return what is still open so the user can re-pick. */
     @ExceptionHandler(BookingException.class)
     public ResponseEntity<ErrorResponse> handleBooking(BookingException e) {
         HttpStatus status = switch (e.getReason()) {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
             case TOO_LATE_TO_CHANGE -> HttpStatus.UNPROCESSABLE_ENTITY;
-            case SLOT_TAKEN, DAY_FULL -> HttpStatus.CONFLICT;
+            case SLOT_TAKEN, DAY_FULL, ALREADY_BOOKED -> HttpStatus.CONFLICT;
         };
         List<SlotResponse> open = e.getHostId() == null ? null : openSlots(e.getHostId());
         return ResponseEntity.status(status).body(new ErrorResponse(e.getCode(), e.getMessage(), open));

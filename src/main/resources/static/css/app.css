@@ -215,3 +215,76 @@ button:disabled { cursor: progress; opacity: 0.7; }
   .slot-days { grid-template-columns: 1fr; gap: 4px; }
   .slot-days dd { margin-bottom: 8px; }
 }
+
+/* ---- Booking page and host bookings ---- */
+.page-wide { max-width: 1040px; }
+
+.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 38px;
+  min-height: 34px;
+  padding: 4px 10px;
+}
+.secondary:disabled { opacity: 0.4; cursor: default; }
+
+.week-nav { display: flex; align-items: center; gap: 8px; }
+.range { font-weight: 600; font-size: 14px; min-width: 150px; text-align: center; }
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+.day-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.day-col h3 { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.slot:hover:not(:disabled) { background: var(--accent-soft); }
+.slot[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.slot:disabled { border-color: var(--border); color: var(--muted); cursor: not-allowed; }
+.slot-hosts { font-size: 11px; font-weight: 500; opacity: 0.8; }
+
+.banner { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+.banner-info { background: var(--accent-soft); color: var(--text); }
+.banner-warn { background: #fff4e5; color: #8a4b00; }
+.banner-error { background: var(--danger-soft); color: var(--danger); }
+
+table.bookings { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+table.bookings th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+table.bookings td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.bookings .hint { margin: 0; }
+.nowrap { white-space: nowrap; }
+.chip-warn { background: #fff4e5; color: #8a4b00; }
+
+@media (prefers-color-scheme: dark) {
+  .banner-warn, .chip-warn { background: #3a2a12; color: #ffc46b; }
+}
+
+@media (max-width: 760px) {
+  .days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .days { grid-template-columns: 1fr; }
+  .range { min-width: 0; }
+}

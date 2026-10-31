@@ -26,6 +26,13 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
             + "and s.startUtc < :to and s.endUtc > :from")
     List<Slot> findOverlapping(Long hostId, SlotStatus status, Instant from, Instant to);
 
+    /** Slots in a status that start in [from, to), earliest first. */
+    @Query("select s from Slot s where s.host.id = :hostId and s.status = :status "
+            + "and s.startUtc >= :from and s.startUtc < :to order by s.startUtc")
+    List<Slot> findStartingBetween(Long hostId, SlotStatus status, Instant from, Instant to);
+
+    Optional<Slot> findByHostIdAndStartUtcAndEndUtc(Long hostId, Instant startUtc, Instant endUtc);
+
     /** Row-locks the slot (SELECT ... FOR UPDATE) for the rest of the transaction. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Slot s where s.id = :id")

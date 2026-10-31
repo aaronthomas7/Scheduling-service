@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book a time</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/book.js"></script>
+</head>
+<body>
+<main class="page page-wide">
+  <header class="page-header">
+    <p class="eyebrow">Scheduling service &middot; Book</p>
+    <h1 id="title">Book a time</h1>
+    <p class="lede">Pick an open time. Times are shown in your timezone.</p>
+  </header>
+
+  <section id="done" class="card result" aria-live="polite" hidden></section>
+
+  <section class="card">
+    <form id="link-form" class="grid grid-2">
+      <div class="field">
+        <label for="hostIds">Host ID(s)</label>
+        <input id="hostIds" name="hostIds" inputmode="numeric" placeholder="1 or 1,2,3" required>
+        <p class="hint">From the booking link. Several IDs means any of those hosts.</p>
+      </div>
+      <div class="field">
+        <label for="timezone">Your timezone</label>
+        <select id="timezone" name="timezone"></select>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="times-heading">
+    <div class="section-head">
+      <h2 id="times-heading">Open times</h2>
+      <div class="week-nav">
+        <button type="button" id="prev-week" class="secondary" aria-label="Previous week">&larr;</button>
+        <span id="range" class="range"></span>
+        <button type="button" id="next-week" class="secondary" aria-label="Next week">&rarr;</button>
+      </div>
+    </div>
+    <p id="banner" class="banner" role="status" hidden></p>
+    <div id="days" class="days"></div>
+  </section>
+
+  <section id="confirm" class="card" aria-labelledby="confirm-heading" hidden>
+    <h2 id="confirm-heading">Confirm your booking</h2>
+    <p id="confirm-summary" class="summary"></p>
+    <form id="confirm-form">
+      <div class="field" id="email-field">
+        <label for="email">Your email (the one you were invited with)</label>
+        <input id="email" type="email" autocomplete="email" placeholder="alex@example.com">
+      </div>
+      <div class="actions">
+        <button type="submit" id="confirm-button" class="primary">Book this time</button>
+        <button type="button" id="cancel-selection" class="link-button">Pick another time</button>
+        <p id="confirm-error" class="error" role="alert" hidden></p>
+      </div>
+    </form>
+  </section>
+</main>
+</body>
+</html>

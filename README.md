@@ -84,6 +84,63 @@ Code layout:
 
 Not yet: rolling the horizon forward each day (needs a scheduled job), and a rule that blocks slots covered by the host's own calendar (needs `host_busy_cache`).
 
+### `GET /get-available-slots/{hostIds}?tz=Europe/London&from=2026-11-02&to=2026-11-08`
+
+The times a person opening the booking link can pick. `hostIds` is one id or a comma-separated list (a hiring-drive link). `from`/`to` are dates in the viewer's timezone `tz`; they default to today plus 6 days.
+
+A time is listed if its slot is OPEN, in the future, and the host's day (in the host's timezone) is still under `maxPerDay`. Each time appears once, with every host free then and that host's `slotId`:
+
+```json
+{"timezone": "Europe/London", "from": "2026-11-02", "to": "2026-11-08",
+ "hosts": [{"hostId": 1, "name": "Priya Sharma", "timezone": "Asia/Kolkata"}],
+ "slots": [{"start": "2026-11-02T05:15:00Z", "end": "2026-11-02T05:45:00Z", "localDate": "2026-11-02",
+            "localStartTime": "05:15", "localEndTime": "05:45", "hosts": [{"hostId": 1, "slotId": 2}]}]}
+```
+
+### `POST /book-slot`
+
+Books a time. `date`/`startTime`/`endTime` are in the viewer's `timezone`, as listed by the endpoint above. The email must belong to an invited (prefilled) user.
+
+```json
+{"hostIds": [1], "date": "2026-11-02", "startTime": "05:15", "endTime": "05:45",
+ "timezone": "Europe/London", "email": "alex@example.com"}
+```
+
+`201` returns the booking (`BookingResponse`, the same shape as reschedule). It runs in one transaction under the host row lock, then the slot row lock, the same order as reschedule:
+- The slot must still be OPEN and in the future.
+- The day must be under the cap.
+- The person can't already hold an upcoming booking with this host; they should reschedule it instead.
+- Then the slot becomes BOOKED and a CONFIRMED booking is written.
+
+Two people clicking the same time are serialised by the locks: one gets it, the other gets `409 SLOT_TAKEN` "This time was just taken" with `openSlots`. The unique `active_slot_id` index is the backstop. With several `hostIds`, hosts are tried in random order and the first one free at that time gets the booking, which spreads a burst across the pool.
+
+Errors:
+- `409 SLOT_TAKEN`, `409 DAY_FULL`: both include `openSlots`.
+- `409 ALREADY_BOOKED`
+- `404 NOT_FOUND`: the user isn't invited, or the host doesn't exist.
+- `400 BAD_REQUEST` / `VALIDATION_FAILED`
+
+### `GET /api/hosts/{hostId}/bookings`
+
+All of the host's bookings in any status, earliest first, with the user's name and email. Read straight from the bookings table, so a new booking or a reschedule (`POST /api/hosts/{hostId}/bookings/reschedule`) shows up immediately. The host page polls this.
+
+## Pages
+
+Plain HTML/JS in `src/main/resources/static`, served by the app:
+- `/host.html`: publish availability, and a **Bookings** list that refreshes every 10 seconds.
+- `/book.html?hosts=1`: the user's booking page.
+  - Shows open times in the viewer's timezone, a week at a time.
+  - Pick a time, enter the invited email, and book.
+  - Afterwards, pick another time and choose "Move my booking here", which calls reschedule.
+  - If someone else got the time first, the page shows "This time was just taken" and reloads the open times.
+- `/index.html`: links to both pages.
+
+Shared modules:
+- `js/api.js`: the only place that calls `fetch`.
+- `js/zones.js`: timezones and date formatting.
+- `js/dom.js`: builds elements from text only, never `innerHTML`.
+- `js/week.js`: turns the weekly hours into availability rules.
+
 ## Database connection
 
 MySQL is the explicit `mysql` profile ([`application-mysql.properties`](src/main/resources/application-mysql.properties)). Run with `SPRING_PROFILES_ACTIVE=mysql`, and set `MYSQL_URL`, `MYSQL_USER` and `MYSQL_PASSWORD`; the defaults point at `localhost:3306/scheduling` as `root`. **Any deployment must set this profile.** With no profile, the app falls back to `local` (in-memory H2, see below) and logs a warning at startup. All datetimes are stored as UTC `DATETIME(6)`, so keep the connection on `serverTimezone=UTC`. Requires MySQL 8.0.16+ for `CHECK` constraints to be enforced. `ddl-auto=validate`, so the schema must exist first; apply `mysql-schema.sql`, or move to Flyway/Liquibase later. Tests run against in-memory H2 in MySQL mode (see `src/test/resources/application.properties`).
@@ -96,13 +153,22 @@ MySQL is the explicit `mysql` profile ([`application-mysql.properties`](src/main
 
 ## Run locally
 
-No MySQL needed. `local` is the default profile: an in-memory H2 database (MySQL mode). The schema is created from the entities, and hosts 1-3 are prefilled with no availability yet. Either press Run on `DemoApplication` in your IDE, or:
+No MySQL needed. `local` is the default profile: an in-memory H2 database (MySQL mode). The schema is created from the entities. Prefilled data:
+- hosts 1-3, with no availability yet;
+- invited users `alex@`, `sam@`, `jordan@`, `taylor@` and `riya@example.com`.
+
+Either press Run on `DemoApplication` in your IDE, or:
 
 ```
 ./mvnw spring-boot:run
 ```
 
-Then publish a schedule:
+Then:
+1. Open `http://localhost:8080/host.html` and publish host 1's hours.
+2. Open `http://localhost:8080/book.html?hosts=1` in another tab and book as `alex@example.com`.
+3. The booking appears in the host page's Bookings list.
+
+Or publish from the command line:
 
 ```
 curl -X POST localhost:8080/publish-availability -H 'Content-Type: application/json' \
