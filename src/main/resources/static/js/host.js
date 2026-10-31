@@ -1,17 +1,9 @@
-import { publishAvailability } from './api.js';
+import { getHostBookings, publishAvailability } from './api.js';
+import { el } from './dom.js';
 import { copyMondayToWeekdays, defaultWeek, newWindowFor, toAvailabilityRules } from './week.js';
+import { dateIn, fillTimezoneSelect, formatDate, formatTime } from './zones.js';
 
-// Used only by browsers without Intl.supportedValuesOf.
-const FALLBACK_ZONES = ['UTC', 'Asia/Kolkata', 'Europe/London', 'Europe/Berlin', 'America/New_York',
-  'America/Chicago', 'America/Los_Angeles', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney'];
-// Browsers often report old zone names (Chrome says Asia/Calcutta). Show the current one; the server accepts both.
-const CURRENT_ZONE_NAME = {
-  'Asia/Calcutta': 'Asia/Kolkata',
-  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
-  'Asia/Katmandu': 'Asia/Kathmandu',
-  'Asia/Rangoon': 'Asia/Yangon',
-  'Europe/Kiev': 'Europe/Kyiv',
-};
+const BOOKINGS_REFRESH_MS = 10_000;
 
 const form = document.getElementById('availability-form');
 const fields = {
@@ -25,18 +17,28 @@ const weekEl = document.getElementById('week');
 const publishButton = document.getElementById('publish');
 const errorEl = document.getElementById('form-error');
 const resultEl = document.getElementById('result');
+const bookingsEl = document.getElementById('bookings');
+const bookingsUpdatedEl = document.getElementById('bookings-updated');
+const bookingLinkEl = document.getElementById('booking-link');
 const dayTemplate = document.getElementById('day-row');
 const windowTemplate = document.getElementById('window-row');
 
 let week = defaultWeek();
 
-fillTimezones();
+fillTimezoneSelect(fields.timezone);
 renderWeek();
+loadBookings();
+setInterval(() => {
+  if (document.visibilityState === 'visible') loadBookings();
+}, BOOKINGS_REFRESH_MS);
 
 document.getElementById('copy-monday').addEventListener('click', () => {
   week = copyMondayToWeekdays(week);
   renderWeek();
 });
+document.getElementById('refresh-bookings').addEventListener('click', loadBookings);
+fields.hostId.addEventListener('change', loadBookings);
+fields.timezone.addEventListener('change', loadBookings);
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -56,6 +58,7 @@ form.addEventListener('submit', async (event) => {
   setBusy(true);
   try {
     renderResult(await publishAvailability(request));
+    loadBookings();
   } catch (err) {
     resultEl.hidden = true;
     showError(err.message);
@@ -63,15 +66,6 @@ form.addEventListener('submit', async (event) => {
     setBusy(false);
   }
 });
-
-function fillTimezones() {
-  const current = (zone) => CURRENT_ZONE_NAME[zone] ?? zone;
-  const browserZone = current(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
-  let zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : FALLBACK_ZONES;
-  zones = [...new Set([browserZone, 'UTC', ...zones.map(current)])].sort();
-  fields.timezone.replaceChildren(
-    ...zones.map((zone) => new Option(zone.replaceAll('_', ' '), zone, false, zone === browserZone)));
-}
 
 // Structural changes (toggle, add, remove, copy) re-render the week; typing a time only updates state,
 // so the input keeps focus.
@@ -156,6 +150,51 @@ function renderResult(r) {
   resultEl.scrollIntoView({ block: 'nearest' });
 }
 
+async function loadBookings() {
+  const hostId = Number(fields.hostId.value);
+  bookingLinkEl.href = `book.html?hosts=${hostId || 1}`;
+  if (!hostId) {
+    bookingsEl.replaceChildren(el('p', { class: 'hint' }, 'Enter a host ID to see bookings.'));
+    return;
+  }
+  try {
+    renderBookings(await getHostBookings(hostId), fields.timezone.value);
+    bookingsUpdatedEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    bookingsEl.replaceChildren(el('p', { class: 'error' }, err.message));
+  }
+}
+
+/** Upcoming confirmed bookings in the host's timezone; moved and cancelled ones are listed underneath. */
+function renderBookings(bookings, zone) {
+  const now = Date.now();
+  const upcoming = bookings.filter((b) => b.status === 'CONFIRMED' && new Date(b.slotEnd).getTime() > now);
+  const history = bookings.filter((b) => b.status !== 'CONFIRMED');
+  if (upcoming.length === 0 && history.length === 0) {
+    bookingsEl.replaceChildren(el('p', { class: 'hint' }, 'No bookings yet.'));
+    return;
+  }
+  const rows = upcoming.map((b) => el('tr', {},
+    el('td', {}, formatDate(dateIn(b.slotStart, zone))),
+    el('td', { class: 'nowrap' }, `${formatTime(b.slotStart, zone)} – ${formatTime(b.slotEnd, zone)}`),
+    el('td', {}, el('div', {}, b.userName), el('div', { class: 'hint' }, b.userEmail)),
+    el('td', {}, b.rescheduledFromBookingId ? el('span', { class: 'chip' }, 'Rescheduled') : '',
+      b.calendarConflict ? el('span', { class: 'chip chip-warn' }, 'Calendar conflict') : '')));
+  const children = [];
+  if (upcoming.length > 0) {
+    children.push(el('table', { class: 'bookings' },
+      el('thead', {}, el('tr', {}, el('th', {}, 'Day'), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''))),
+      el('tbody', {}, ...rows)));
+  } else {
+    children.push(el('p', { class: 'hint' }, 'No upcoming bookings.'));
+  }
+  if (history.length > 0) {
+    children.push(el('p', { class: 'hint' }, `${history.length} earlier booking(s) were moved or cancelled: `
+      + history.map((b) => `${b.userName} (${b.status.toLowerCase()})`).join(', ')));
+  }
+  bookingsEl.replaceChildren(...children);
+}
+
 function showError(message) {
   errorEl.textContent = message ?? '';
   errorEl.hidden = !message;
@@ -164,18 +203,4 @@ function showError(message) {
 function setBusy(busy) {
   publishButton.disabled = busy;
   publishButton.textContent = busy ? 'Publishing…' : 'Publish availability';
-}
-
-/** "2026-11-30" -> "Mon 30 Nov" in the viewer's locale; the date is a calendar day, so format it in UTC. */
-function formatDate(isoDate) {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-    .format(new Date(`${isoDate}T00:00:00Z`));
-}
-
-/** Builds an element with text children only (never innerHTML), so names from the server can't inject markup. */
-function el(tag, attrs, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-  node.append(...children);
-  return node;
 }

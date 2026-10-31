@@ -1,6 +1,5 @@
 package com.example.demo.service;
 
-import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
@@ -142,10 +141,7 @@ public final class SlotGenerator {
 
     /** Parses an IANA zone id like Asia/Kolkata. */
     public static ZoneId parseZone(String id) {
-        try {
-            return ZoneId.of(id.trim());
-        } catch (DateTimeException | NullPointerException e) {
-            throw new InvalidAvailabilityException("unknown timezone '" + id + "', use an IANA name like Asia/Kolkata");
-        }
+        return TimeZones.parse(id).orElseThrow(() ->
+                new InvalidAvailabilityException("unknown timezone '" + id + "', use an IANA name like Asia/Kolkata"));
     }
 }
