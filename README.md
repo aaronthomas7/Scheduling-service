@@ -85,3 +85,20 @@ Not configured yet. Set `spring.datasource.*` in `application.properties` (a MyS
 ```
 ./mvnw test
 ```
+
+## Run locally
+
+No MySQL needed. The `local` profile uses an in-memory H2 database (MySQL mode). The schema is created from the entities, and hosts 1-3 are prefilled with no availability yet:
+
+```
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Then publish a schedule:
+
+```
+curl -X POST localhost:8080/publish-availability -H 'Content-Type: application/json' \
+  -d '{"hostId":1,"timezone":"Asia/Kolkata","slotMinutes":30,"gapMinutes":15,"maxPerDay":4,"availability":[{"days":[1,2,3,4,5],"start":"10:00","end":"13:00"}]}'
+```
+
+Data is lost when the app stops. The tables can be browsed at `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:scheduling`, user `sa`, no password).
