@@ -42,12 +42,71 @@ Host in India, 10:00-13:00, 30-minute slots, 15-minute gap, max 4 a day gives sl
 - `outbox`: reliable sending of calendar invites and emails after commit.
 - Cache of open slots per host (for example Redis, 5-10 second TTL) so a burst of 2,000 viewers doesn't hit the database. Stale cache is safe, because the booking transaction is the source of truth.
 
+## API
+
+### `POST /publish-availability`
+
+Sets a host's weekly availability, slot length, gap and daily cap, then regenerates their future slots. The host row must already exist (hosts are prefilled). A trailing slash (`/publish-availability/`) also works.
+
+```json
+{
+  "hostId": 1,
+  "timezone": "Asia/Kolkata",
+  "slotMinutes": 30,
+  "gapMinutes": 15,
+  "maxPerDay": 4,
+  "availability": [{ "days": [1, 2, 3, 4, 5], "start": "10:00", "end": "13:00" }]
+}
+```
+
+`days` are ISO weekdays (1 = Monday). `start`/`end` are the host's local time and must be on the same day. `gapMinutes` defaults to 0.
+
+The response echoes the saved schedule and shows the result: `slotsGeneratedUntil`, `openSlots` (count) and `nextOpenSlots`, the first 10 with UTC `start`/`end` plus `hostLocalStart`/`hostLocalEnd`. For the body above, Monday's slots are 10:00, 10:45, 11:30 and 12:15 IST.
+
+Behaviour:
+- Slots are generated for today plus `scheduling.horizon-days` (default 30) in the host's timezone. Only slots that haven't started are touched.
+- **BOOKED slots are never changed.** A future OPEN/BLOCKED slot whose start is still on the new grid is kept and resized. If its start is off the grid, it is deleted, or set to BLOCKED if a booking (even a cancelled one) still references it.
+- A slot on the grid is OPEN unless a `SlotBlockingRule` blocks it. `BookedSlotOverlapRule` blocks slots that overlap an existing booking (possible after changing the slot length), so the host can't be double-booked. Adding a reason to block, such as the host's calendar being busy, means adding another rule bean; nothing else changes.
+- Runs under the host row lock (`findByIdForUpdate`), the same lock the booking transaction takes.
+- Publishing the same schedule twice changes nothing.
+- Errors, as `{"error": "...", "message": "..."}`:
+  - `400 INVALID_AVAILABILITY` for an unknown timezone, a window that ends before it starts or is shorter than one slot, days outside 1-7, or overlapping windows on the same day.
+  - `400 VALIDATION_FAILED` for missing or out-of-range fields.
+  - `404 HOST_NOT_FOUND` if the host doesn't exist.
+
+Code layout:
+- `AvailabilityController`: HTTP only.
+- `AvailabilityService`: validates the request, locks and updates the host, returns the response.
+- `SlotRegenerator`: syncs the host's slot rows.
+- `SlotGenerator`: pure slot math.
+- `service/blocking`: the blocking rules.
+- Domain exceptions are mapped to HTTP in `ApiExceptionHandler`.
+
+Not yet: rolling the horizon forward each day (needs a scheduled job), and a rule that blocks slots covered by the host's own calendar (needs `host_busy_cache`).
+
 ## Database connection
 
-Not configured yet. Set `spring.datasource.*` in `application.properties` (a MySQL URL placeholder is there). All datetimes are stored as UTC `DATETIME(6)`, so keep the connection on `serverTimezone=UTC`. Requires MySQL 8.0.16+ for `CHECK` constraints to be enforced. `ddl-auto=validate`, so the schema must exist first; apply `mysql-schema.sql`, or move to Flyway/Liquibase later. Tests run against in-memory H2 in MySQL mode (see `src/test/resources/application.properties`).
+MySQL is the explicit `mysql` profile ([`application-mysql.properties`](src/main/resources/application-mysql.properties)). Run with `SPRING_PROFILES_ACTIVE=mysql`, and set `MYSQL_URL`, `MYSQL_USER` and `MYSQL_PASSWORD`; the defaults point at `localhost:3306/scheduling` as `root`. **Any deployment must set this profile.** With no profile, the app falls back to `local` (in-memory H2, see below) and logs a warning at startup. All datetimes are stored as UTC `DATETIME(6)`, so keep the connection on `serverTimezone=UTC`. Requires MySQL 8.0.16+ for `CHECK` constraints to be enforced. `ddl-auto=validate`, so the schema must exist first; apply `mysql-schema.sql`, or move to Flyway/Liquibase later. Tests run against in-memory H2 in MySQL mode (see `src/test/resources/application.properties`).
 
 ## Build and test
 
 ```
 ./mvnw test
 ```
+
+## Run locally
+
+No MySQL needed. `local` is the default profile: an in-memory H2 database (MySQL mode). The schema is created from the entities, and hosts 1-3 are prefilled with no availability yet. Either press Run on `DemoApplication` in your IDE, or:
+
+```
+./mvnw spring-boot:run
+```
+
+Then publish a schedule:
+
+```
+curl -X POST localhost:8080/publish-availability -H 'Content-Type: application/json' \
+  -d '{"hostId":1,"timezone":"Asia/Kolkata","slotMinutes":30,"gapMinutes":15,"maxPerDay":4,"availability":[{"days":[1,2,3,4,5],"start":"10:00","end":"13:00"}]}'
+```
+
+Data is lost when the app stops. The tables can be browsed at `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:scheduling`, user `sa`, no password).
