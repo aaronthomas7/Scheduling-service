@@ -84,11 +84,22 @@ public class RescheduleService {
             throw BookingException.dayFull(hostId);
         }
 
-        oldSlot.setStatus(SlotStatus.OPEN);
+        int count;
+        synchronized (oldSlot) {
+            oldSlot.setStatus(SlotStatus.OPEN);
+            count = oldSlot.getCount();
+        }
+        oldSlot.setCount(--count);
         old.setStatus(BookingStatus.RESCHEDULED);
         old.setCancelledAt(now);
-
-        newSlot.setStatus(SlotStatus.BOOKED);
+        if (newSlot.getCount() == newSlot.getMaxInterviees()) {
+            throw new RuntimeException("Maximum "+ newSlot.getMaxInterviees() + " are allowed to book slot");
+        }
+        synchronized (newSlot) {
+            newSlot.setStatus(SlotStatus.BOOKED);
+            int count1 = newSlot.getCount();
+            newSlot.setCount(++count1);
+        }
         Booking next = new Booking();
         next.setSlot(newSlot);
         next.setHost(old.getHost());
