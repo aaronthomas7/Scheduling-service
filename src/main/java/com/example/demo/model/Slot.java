@@ -52,4 +52,10 @@ public class Slot {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SlotStatus status = SlotStatus.OPEN;
+
+    @Column(nullable = false)
+    private int maxInterviees = 2;
+
+    @Column(name = "count", nullable = false)
+    private int count = 0;
 }
