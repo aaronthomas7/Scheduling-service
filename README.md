@@ -86,7 +86,7 @@ Not yet: rolling the horizon forward each day (needs a scheduled job), and a rul
 
 ## Database connection
 
-Not configured yet. Set `spring.datasource.*` in `application.properties` (a MySQL URL placeholder is there). All datetimes are stored as UTC `DATETIME(6)`, so keep the connection on `serverTimezone=UTC`. Requires MySQL 8.0.16+ for `CHECK` constraints to be enforced. `ddl-auto=validate`, so the schema must exist first; apply `mysql-schema.sql`, or move to Flyway/Liquibase later. Tests run against in-memory H2 in MySQL mode (see `src/test/resources/application.properties`).
+MySQL is the explicit `mysql` profile ([`application-mysql.properties`](src/main/resources/application-mysql.properties)). Run with `SPRING_PROFILES_ACTIVE=mysql`, and set `MYSQL_URL`, `MYSQL_USER` and `MYSQL_PASSWORD`; the defaults point at `localhost:3306/scheduling` as `root`. **Any deployment must set this profile.** With no profile, the app falls back to `local` (in-memory H2, see below) and logs a warning at startup. All datetimes are stored as UTC `DATETIME(6)`, so keep the connection on `serverTimezone=UTC`. Requires MySQL 8.0.16+ for `CHECK` constraints to be enforced. `ddl-auto=validate`, so the schema must exist first; apply `mysql-schema.sql`, or move to Flyway/Liquibase later. Tests run against in-memory H2 in MySQL mode (see `src/test/resources/application.properties`).
 
 ## Build and test
 
@@ -96,10 +96,10 @@ Not configured yet. Set `spring.datasource.*` in `application.properties` (a MyS
 
 ## Run locally
 
-No MySQL needed. The `local` profile uses an in-memory H2 database (MySQL mode). The schema is created from the entities, and hosts 1-3 are prefilled with no availability yet:
+No MySQL needed. `local` is the default profile: an in-memory H2 database (MySQL mode). The schema is created from the entities, and hosts 1-3 are prefilled with no availability yet. Either press Run on `DemoApplication` in your IDE, or:
 
 ```
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw spring-boot:run
 ```
 
 Then publish a schedule:

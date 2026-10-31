@@ -26,6 +26,9 @@ public class LocalSeedData implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // "local" is the default profile, so make it obvious when a real deployment forgot to pick MySQL.
+        log.warn("Running the local profile: in-memory H2, data is lost on stop. "
+                + "Set SPRING_PROFILES_ACTIVE=mysql to use MySQL.");
         if (hosts.count() > 0) {
             return;
         }
