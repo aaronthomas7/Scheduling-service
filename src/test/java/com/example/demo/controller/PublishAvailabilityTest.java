@@ -38,6 +38,7 @@ import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.HostRepository;
 import com.example.demo.repository.SlotRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.service.blocking.SlotBlockingRule;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -46,6 +47,9 @@ class PublishAvailabilityTest {
 
     /** Sunday 10 Jan 2027, 05:30 in India. */
     static final Instant NOW = Instant.parse("2027-01-10T00:00:00Z");
+    /** Host whose (pretend) calendar has a meeting over Monday's 12:15 IST slot. */
+    static final long HOST_WITH_MEETING = 4242;
+    static final Instant MEETING_SLOT = Instant.parse("2027-01-11T06:45:00Z");
     private static final AtomicLong IDS = new AtomicLong(1000);
     private static final String WEEKDAYS_10_TO_13 = """
             [{"days": [1,2,3,4,5], "start": "10:00", "end": "13:00"}]""";
@@ -56,6 +60,12 @@ class PublishAvailabilityTest {
         @Primary
         Clock fixedClock() {
             return Clock.fixed(NOW, ZoneOffset.UTC);
+        }
+
+        /** A new blocking rule is just another bean; the regenerator picks it up unchanged. */
+        @Bean
+        SlotBlockingRule pretendCalendarMeeting() {
+            return (host, from, to) -> g -> host.getId() == HOST_WITH_MEETING && g.start().equals(MEETING_SLOT);
         }
     }
 
@@ -136,6 +146,18 @@ class PublishAvailabilityTest {
     }
 
     @Test
+    void extraBlockingRulesArePluggedIn() throws Exception {
+        newHost(HOST_WITH_MEETING);
+
+        publish(body(HOST_WITH_MEETING, "Asia/Kolkata", 30, 15, 4, WEEKDAYS_10_TO_13))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.openSlots").value(87))
+                .andExpect(jsonPath("$.nextOpenSlots[3].hostLocalDate").value("2027-01-12"));
+
+        assertEquals(SlotStatus.BLOCKED, slotAt(HOST_WITH_MEETING, MEETING_SLOT.toString()).getStatus());
+    }
+
+    @Test
     void trailingSlashWorksToo() throws Exception {
         long hostId = newHost();
         mvc.perform(post("/publish-availability/").contentType(MediaType.APPLICATION_JSON)
@@ -148,7 +170,7 @@ class PublishAvailabilityTest {
     void unknownHostIs404() throws Exception {
         publish(body(999_999, "Asia/Kolkata", 30, 15, 4, WEEKDAYS_10_TO_13))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.error").value("HOST_NOT_FOUND"));
     }
 
     @Test
@@ -157,6 +179,7 @@ class PublishAvailabilityTest {
 
         publish(body(hostId, "Mars/Olympus", 30, 15, 4, WEEKDAYS_10_TO_13))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_AVAILABILITY"))
                 .andExpect(jsonPath("$.message").value(containsString("unknown timezone")));
         publish(body(hostId, "Asia/Kolkata", 30, 15, 4, """
                 [{"days": [1], "start": "13:00", "end": "10:00"}]"""))
@@ -195,9 +218,12 @@ class PublishAvailabilityTest {
                  "availability": %s}""".formatted(hostId, timezone, slotMinutes, gapMinutes, maxPerDay, availability);
     }
 
-    /** Hosts are prefilled rows; this stands in for that. */
     private long newHost() {
-        long id = IDS.incrementAndGet();
+        return newHost(IDS.incrementAndGet());
+    }
+
+    /** Hosts are prefilled rows; this stands in for that. */
+    private long newHost(long id) {
         Host h = new Host();
         h.setId(id);
         h.setName("Host " + id);

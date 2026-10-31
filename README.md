@@ -66,15 +66,23 @@ The response echoes the saved schedule and shows the result: `slotsGeneratedUnti
 Behaviour:
 - Slots are generated for today plus `scheduling.horizon-days` (default 30) in the host's timezone. Only slots that haven't started are touched.
 - **BOOKED slots are never changed.** A future OPEN/BLOCKED slot whose start is still on the new grid is kept and resized. If its start is off the grid, it is deleted, or set to BLOCKED if a booking (even a cancelled one) still references it.
-- A new slot that would overlap a booked one (possible after changing the slot length) is created BLOCKED, so the host can't be double-booked.
+- A slot on the grid is OPEN unless a `SlotBlockingRule` blocks it. `BookedSlotOverlapRule` blocks slots that overlap an existing booking (possible after changing the slot length), so the host can't be double-booked. Adding a reason to block, such as the host's calendar being busy, means adding another rule bean; nothing else changes.
 - Runs under the host row lock (`findByIdForUpdate`), the same lock the booking transaction takes.
 - Publishing the same schedule twice changes nothing.
-- Errors:
-  - `400` for an unknown timezone, a window that ends before it starts or is shorter than one slot, days outside 1-7, or overlapping windows on the same day.
-  - `404` if the host doesn't exist.
-  - Body format: `{"error": "...", "message": "..."}`.
+- Errors, as `{"error": "...", "message": "..."}`:
+  - `400 INVALID_AVAILABILITY` for an unknown timezone, a window that ends before it starts or is shorter than one slot, days outside 1-7, or overlapping windows on the same day.
+  - `400 VALIDATION_FAILED` for missing or out-of-range fields.
+  - `404 HOST_NOT_FOUND` if the host doesn't exist.
 
-Not yet: rolling the horizon forward each day (needs a scheduled job), and blocking slots covered by the host's own calendar (needs `host_busy_cache`).
+Code layout:
+- `AvailabilityController`: HTTP only.
+- `AvailabilityService`: validates the request, locks and updates the host, returns the response.
+- `SlotRegenerator`: syncs the host's slot rows.
+- `SlotGenerator`: pure slot math.
+- `service/blocking`: the blocking rules.
+- Domain exceptions are mapped to HTTP in `ApiExceptionHandler`.
+
+Not yet: rolling the horizon forward each day (needs a scheduled job), and a rule that blocks slots covered by the host's own calendar (needs `host_busy_cache`).
 
 ## Database connection
 

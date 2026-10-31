@@ -13,6 +13,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.example.demo.exception.InvalidAvailabilityException;
 import com.example.demo.model.AvailabilityRule;
 
 class SlotGeneratorTest {
@@ -73,7 +74,7 @@ class SlotGeneratorTest {
         List<AvailabilityRule> rules = List.of(
                 new AvailabilityRule(List.of(1), "10:00", "12:00"),
                 new AvailabilityRule(List.of(1, 2), "11:00", "13:00"));
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        InvalidAvailabilityException e = assertThrows(InvalidAvailabilityException.class,
                 () -> SlotGenerator.validate(rules, 30));
         assertTrue(e.getMessage().contains("overlap on Monday"), e.getMessage());
     }
@@ -87,20 +88,26 @@ class SlotGeneratorTest {
 
     @Test
     void rejectsWindowsThatCannotHoldOneSlot() {
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(
                 List.of(new AvailabilityRule(List.of(1), "10:00", "10:20")), 30));
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(
                 List.of(new AvailabilityRule(List.of(1), "13:00", "10:00")), 30));
     }
 
     @Test
     void rejectsBadDaysAndTimes() {
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(
                 List.of(new AvailabilityRule(List.of(8), "10:00", "13:00")), 30));
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(
                 List.of(new AvailabilityRule(List.of(), "10:00", "13:00")), 30));
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(
                 List.of(new AvailabilityRule(List.of(1), "10am", "13:00")), 30));
-        assertThrows(IllegalArgumentException.class, () -> SlotGenerator.validate(List.of(), 30));
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.validate(List.of(), 30));
+    }
+
+    @Test
+    void parsesIanaZonesAndRejectsOthers() {
+        assertEquals(INDIA, SlotGenerator.parseZone(" Asia/Kolkata "));
+        assertThrows(InvalidAvailabilityException.class, () -> SlotGenerator.parseZone("Mars/Olympus"));
     }
 }

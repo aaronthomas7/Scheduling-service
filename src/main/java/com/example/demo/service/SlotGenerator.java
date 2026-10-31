@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
@@ -16,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.example.demo.exception.InvalidAvailabilityException;
 import com.example.demo.model.AvailabilityRule;
 
 /**
@@ -41,30 +43,30 @@ public final class SlotGenerator {
     /**
      * Rejects availability that would produce no slots or overlapping slots.
      *
-     * @throws IllegalArgumentException with a message meant for the caller
+     * @throws InvalidAvailabilityException with a message meant for the caller
      */
     public static void validate(List<AvailabilityRule> rules, int slotMinutes) {
         if (rules == null || rules.isEmpty()) {
-            throw new IllegalArgumentException("availability needs at least one rule");
+            throw new InvalidAvailabilityException("availability needs at least one rule");
         }
         Map<Integer, List<LocalTime[]>> windowsByDay = new TreeMap<>();
         for (AvailabilityRule rule : rules) {
             if (rule == null || rule.days() == null || rule.days().isEmpty()) {
-                throw new IllegalArgumentException("every availability rule needs days, e.g. [1,2,3,4,5]");
+                throw new InvalidAvailabilityException("every availability rule needs days, e.g. [1,2,3,4,5]");
             }
             LocalTime start = parseTime(rule.start());
             LocalTime end = parseTime(rule.end());
             if (!end.isAfter(start)) {
-                throw new IllegalArgumentException(
+                throw new InvalidAvailabilityException(
                         "window " + rule.start() + "-" + rule.end() + " must end after it starts (same day)");
             }
             if (Duration.between(start, end).toMinutes() < slotMinutes) {
-                throw new IllegalArgumentException("window " + rule.start() + "-" + rule.end()
+                throw new InvalidAvailabilityException("window " + rule.start() + "-" + rule.end()
                         + " is shorter than one " + slotMinutes + "-minute slot");
             }
             for (Integer day : rule.days()) {
                 if (day == null || day < 1 || day > 7) {
-                    throw new IllegalArgumentException("days must be ISO weekdays 1 (Monday) to 7 (Sunday), got " + day);
+                    throw new InvalidAvailabilityException("days must be ISO weekdays 1 (Monday) to 7 (Sunday), got " + day);
                 }
                 windowsByDay.computeIfAbsent(day, d -> new ArrayList<>()).add(new LocalTime[] {start, end});
             }
@@ -76,7 +78,7 @@ public final class SlotGenerator {
                 LocalTime[] prev = windows.get(i - 1);
                 LocalTime[] cur = windows.get(i);
                 if (cur[0].isBefore(prev[1])) {
-                    throw new IllegalArgumentException("availability windows overlap on "
+                    throw new InvalidAvailabilityException("availability windows overlap on "
                             + DayOfWeek.of(day).getDisplayName(TextStyle.FULL, Locale.ENGLISH) + ": "
                             + prev[0] + "-" + prev[1] + " and " + cur[0] + "-" + cur[1]);
                 }
@@ -134,7 +136,16 @@ public final class SlotGenerator {
         try {
             return LocalTime.parse(hhmm);
         } catch (DateTimeParseException | NullPointerException e) {
-            throw new IllegalArgumentException("invalid time '" + hhmm + "', expected HH:mm like 10:00");
+            throw new InvalidAvailabilityException("invalid time '" + hhmm + "', expected HH:mm like 10:00");
+        }
+    }
+
+    /** Parses an IANA zone id like Asia/Kolkata. */
+    public static ZoneId parseZone(String id) {
+        try {
+            return ZoneId.of(id.trim());
+        } catch (DateTimeException | NullPointerException e) {
+            throw new InvalidAvailabilityException("unknown timezone '" + id + "', use an IANA name like Asia/Kolkata");
         }
     }
 }
